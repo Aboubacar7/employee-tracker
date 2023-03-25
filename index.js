@@ -64,7 +64,7 @@ function viewAllRoles() {
 }
 
 function viewAllEmployees() {
-    connection.query("SELECT * FROM employees", (err, data) => {
+    connection.query("SELECT employees.id, employees.first_name, employees.last_name, roles.title, departments.name as department, roles.salary, employees.manager_id FROM employees join roles on employees.role_id = roles.id   join departments on roles.department_id = departments.id ", (err, data) => {
         if (err) throw err;
         console.table(data)
         mainQuestion()
@@ -141,18 +141,19 @@ function addEmployee() {
                 choices: roleChoices
             },
         ]).then(answer => {
-            // const employeeRole = answer.employeeRole
-            connection.query("SELECT * FROM employees", (err, data) => {
+            const employeeRole = answer.employeeRole
+            connection.query("SELECT manager.first_name, manager.last_name FROM employees", (err, data) => {
                 if (err) throw err;
-                const employeeManager = data.map(({ namager_name }) => ({
-                    name: namager_name,
-                    
+                const employeeManager = data.map(({ id, first_name, last_name }) => ({
+                    first_name: first_name,
+                    last_name: last_name,
+                    value: id
                 }))
                 inquirer.prompt([
                     {
                         type: "list",
                         name: "employeeManager",
-                        message: "What is the id number of the new role for that employee?",
+                        message: "Who is the employee's manager?",
                         choices: employeeManager
                     }
                 ])
