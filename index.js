@@ -64,11 +64,13 @@ function viewAllRoles() {
 }
 
 function viewAllEmployees() {
-    connection.query("SELECT employees.id, employees.first_name, employees.last_name, roles.title, departments.name as department, roles.salary, employees.manager_id FROM employees join roles on employees.role_id = roles.id   join departments on roles.department_id = departments.id ", (err, data) => {
-        if (err) throw err;
-        console.table(data)
-        mainQuestion()
-    })
+    connection.query("SELECT employees1.id, employees1.first_name, employees1.last_name, roles.title, roles.salary, departments.name, CONCAT(employees2.first_name, ' ', employees2.last_name) AS manager_name FROM employees AS employees1 JOIN roles ON employees1.role_id = roles.id JOIN departments ON roles.department_id = departments.id LEFT JOIN employees AS employees2 ON employees1.manager_id = employees2.id",
+
+        (err, data) => {
+            if (err) throw err;
+            console.table(data)
+            mainQuestion()
+        })
 }
 
 function addDepartment() {
@@ -119,7 +121,7 @@ function addEmployee() {
     connection.query("SELECT * FROM roles", (err, data) => {
         if (err) throw err;
         const roleChoices = data.map(({ id, title }) => ({
-            title: title,
+            name: title,
             value: id
         }))
         console.log(roleChoices)
@@ -140,13 +142,12 @@ function addEmployee() {
                 message: "What is the employee's role?",
                 choices: roleChoices
             },
-        ]).then(answer => {
+        ]) .then(answer => {
             const employeeRole = answer.employeeRole
-            connection.query("SELECT manager.first_name, manager.last_name FROM employees", (err, data) => {
+            connection.query("SELECT id, first_name, last_name FROM employees where employees.manager_id is not null", (err, data) => {
                 if (err) throw err;
                 const employeeManager = data.map(({ id, first_name, last_name }) => ({
-                    first_name: first_name,
-                    last_name: last_name,
+                    name: `${first_name} ${last_name}`,
                     value: id
                 }))
                 inquirer.prompt([
@@ -156,17 +157,26 @@ function addEmployee() {
                         message: "Who is the employee's manager?",
                         choices: employeeManager
                     }
-                ])
+                ]).then(answer => {
+                    connection.query("INSERT INTO employees SET ?",
+                        {
+                            first_name: answer.employeeFirst_name,
+                            last_name: answer.employeeLast_name,
+                            role_id: employeeRole,
+                            manager_id: answer.employeeManager
+                        })
+                    mainQuestion()
+                })
             })
         })
     })
 }
 
 function updateRole() {
-    connection.query("SELECT * FROM employees", (err, data) => {
+    connection.query("SELECT id, first_name, last_name FROM employees ", (err, data) => {
         if (err) throw err;
-        const employeeChoices = data.map(({ id, first_name }) => ({
-            name: first_name,
+        const employeeChoices = data.map(({ id, first_name, last_name }) => ({
+            name: `${first_name} ${last_name}`,
             value: id
         }))
         console.log(employeeChoices)
@@ -174,7 +184,7 @@ function updateRole() {
             {
                 type: "list",
                 name: "employeeId",
-                message: "What is the id number of the employee you want to update?",
+                message: "Which employee's role do you want to update?",
                 choices: employeeChoices
             },
         ]).then(answers => {
@@ -183,7 +193,7 @@ function updateRole() {
             connection.query("SELECT * FROM roles", (err, data) => {
                 if (err) throw err;
                 const roleChoices = data.map(({ id, title }) => ({
-                    tite: title,
+                    name: title,
                     value: id
                 }))
 
@@ -191,7 +201,7 @@ function updateRole() {
                     {
                         type: "list",
                         name: "roleId",
-                        message: "What is the id number of the new role for that employee?",
+                        message: "Which role do you want to assign the sellected employee?",
                         choices: roleChoices
                     }
                 ]).then(roleAnswer => {
@@ -203,6 +213,7 @@ function updateRole() {
                             id: employeeID
                         }
                     ])
+                    console.log("Updated employee's role")
                     mainQuestion()
                 })
             })
