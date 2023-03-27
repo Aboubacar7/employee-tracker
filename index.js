@@ -24,7 +24,7 @@ function mainQuestion() {
                 type: 'list',
                 name: "mainQuestion",
                 message: "What would you like to do?",
-                choices: ['View All Departments', 'View All Roles', 'View All Employees', 'Add Department', 'Add Role', 'Add Employee', 'Update Employee Role', 'Quit']
+                choices: ['View All Departments', 'View All Roles', 'View All Employees', 'Add Department', 'Add Role', 'Add Employee', 'Update Employee Role', 'Delete department', 'Quit']
             }
         ]).then(answers => {
             if (answers.mainQuestion === 'View All Departments') {
@@ -41,6 +41,8 @@ function mainQuestion() {
                 addEmployee()
             } else if (answers.mainQuestion === 'Update Employee Role') {
                 updateRole()
+            } else if (answers.mainQuestion === 'Delete department') {
+                deleteDepartment()
             } else {
                 connection.end()
             }
@@ -84,36 +86,58 @@ function addDepartment() {
         connection.query("INSERT INTO departments SET ?",
             {
                 name: answer.departmentName
-            })
-        mainQuestion()
-    })
-}
+            }, (error, result) => {
+                if (error) {
+                    console.log(error);
+                } else {
+                    console.log(`New department ${answer.departmentName} has been added.`);
+                }
+                mainQuestion()
+            });
+    });
+};
+
 
 function addRole() {
-    inquirer.prompt([
-        {
-            type: "input",
-            name: "roleTitle",
-            message: "What is the title of your new role?"
-        },
-        {
-            type: "input",
-            name: "roleSalary",
-            message: "What is the salary of your new role?"
-        },
-        {
-            type: "input",
-            name: "rolesDepartment",
-            message: "What is the department id number of your new role?"
-        }
-    ]).then(answer => {
-        connection.query("INSERT INTO roles SET ?",
+    connection.query("SELECT * FROM departments", (err, data) => {
+        if (err) throw err;
+        const departmentChoices = data.map(({ id, name }) => ({
+            name: name,
+            value: id
+        }))
+        inquirer.prompt([
             {
-                title: answer.roleTitle,
-                salary: answer.roleSalary,
-                department_id: answer.rolesDepartment
-            })
-        mainQuestion()
+                type: "input",
+                name: "roleTitle",
+                message: "What is the title of the new role?"
+            },
+            {
+                type: "input",
+                name: "roleSalary",
+                message: "What is the salary of the new role?"
+            },
+            {
+                type: "list",
+                name: "rolesDepartment",
+                message: "Which department does the role belong to?",
+                choices: departmentChoices
+            }
+        ]).then(answer => {
+            connection.query("INSERT INTO roles SET ?",
+                {
+                    title: answer.roleTitle,
+                    salary: answer.roleSalary,
+                    department_id: answer.rolesDepartment
+                }, (error, result) => {
+                    if (error) {
+                        console.log(error);
+                    } else {
+                        console.log(`Added ${answer.roleTitle} to the database.`);
+                    }
+                    mainQuestion()
+                });
+
+        })
     })
 }
 
@@ -142,9 +166,9 @@ function addEmployee() {
                 message: "What is the employee's role?",
                 choices: roleChoices
             },
-        ]) .then(answer => {
-            const employeeRole = answer.employeeRole
-            connection.query("SELECT id, first_name, last_name FROM employees where employees.manager_id is not null", (err, data) => {
+        ]).then(answerEmployee => {
+            const employeeRole = answerEmployee.employeeRole
+            connection.query("SELECT id, first_name, last_name FROM employees WHERE employees.manager_id is not null", (err, data) => {
                 if (err) throw err;
                 const employeeManager = data.map(({ id, first_name, last_name }) => ({
                     name: `${first_name} ${last_name}`,
@@ -160,12 +184,18 @@ function addEmployee() {
                 ]).then(answer => {
                     connection.query("INSERT INTO employees SET ?",
                         {
-                            first_name: answer.employeeFirst_name,
-                            last_name: answer.employeeLast_name,
+                            first_name: answerEmployee.employeeFirst_name,
+                            last_name: answerEmployee.employeeLast_name,
                             role_id: employeeRole,
                             manager_id: answer.employeeManager
-                        })
-                    mainQuestion()
+                        }, (error, result) => {
+                            if (error) {
+                                console.log(error);
+                            } else {
+                                console.log(`Added ${answerEmployee.employeeFirst_name} ${answerEmployee.employeeLast_name} to the database.`);
+                            }
+                            mainQuestion()
+                        });
                 })
             })
         })
@@ -219,4 +249,37 @@ function updateRole() {
             })
         })
     })
+}
+
+function deleteDepartment() {
+    connection.query("SELECT * FROM departments", (error, results) => {
+        if (error) {
+            console.log(error);
+        } else {
+
+            console.log("Current departments:");
+            console.table(results);
+            inquirer.prompt([
+                {
+                    type: "list",
+                    name: "departmentId",
+                    message: "Which department would you like to delete?",
+                    choices: results.map(department => ({
+                        name: department.name,
+                        value: department.id
+                    }))
+                }
+            ]).then(answer => {
+
+                connection.query("DELETE FROM departments WHERE id = ?", [answer.departmentId], (error, result) => {
+                    if (error) {
+                        console.log(error);
+                    } else {
+                        console.log(`Department with ID ${answer.departmentId} has been deleted.`);
+                    }
+                    mainQuestion();
+                });
+            });
+        }
+    });
 }
